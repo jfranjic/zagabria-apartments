@@ -1,276 +1,136 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserSupabaseClient } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import MainLayout from '@/components/layout/MainLayout'
 import Button from '@/components/ui/Button'
 import ReservationModal from '@/components/reservations/ReservationModal'
-import ReservationCalendar from '@/components/calendar/ReservationCalendar'
-import { Apartment, Reservation, CleaningSession } from '@/types'
+
+interface Reservation {
+  id: string
+  apartment_id: string
+  guest_name: string
+  guest_email: string
+  checkin_date: string
+  checkout_date: string
+  status: string
+}
 
 export default function ReservationsPage() {
-  const [view, setView] = useState<'calendar' | 'list'>('calendar')
   const [reservations, setReservations] = useState<Reservation[]>([])
-  const [cleaningSessions, setCleaningSessions] = useState<CleaningSession[]>([])
-  const [apartments, setApartments] = useState<Apartment[]>([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | undefined>()
-  const [user, setUser] = useState<any>(null)
-  const [selectedApartment, setSelectedApartment] = useState<string>('all')
-  const supabase = createBrowserSupabaseClient()
+  const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    fetchData()
-    fetchUser()
+    fetchReservations()
   }, [])
 
-  const fetchUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user?.id) {
-      const { data } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-      setUser(data)
-    }
-  }
-
-  const fetchData = async () => {
-    // Fetch apartments
-    const { data: apartmentsData } = await supabase
-      .from('apartments')
-      .select('*')
-      .order('name')
-    
-    if (apartmentsData) {
-      setApartments(apartmentsData)
-    }
-
-    // Fetch reservations
-    const { data: reservationsData } = await supabase
-      .from('reservations')
-      .select('*, apartments(name)')
-      .order('checkin_date')
-    
-    if (reservationsData) {
-      setReservations(reservationsData)
-    }
-
-    // Fetch cleaning sessions
-    const { data: cleaningData } = await supabase
-      .from('cleaning_sessions')
-      .select('*')
-      .order('scheduled_date')
-    
-    if (cleaningData) {
-      setCleaningSessions(cleaningData)
-    }
-  }
-
-  const handleAddEdit = async (reservationData: Partial<Reservation>) => {
+  const fetchReservations = async () => {
     try {
-      if (selectedReservation) {
-        // Update existing reservation
-        const { error } = await supabase
-          .from('reservations')
-          .update(reservationData)
-          .eq('id', selectedReservation.id)
-
-        if (error) throw error
-
-        // Update cleaning session date if checkout date changed
-        if (reservationData.checkout_date !== selectedReservation.checkout_date) {
-          const { error: cleaningError } = await supabase
-            .from('cleaning_sessions')
-            .update({ scheduled_date: reservationData.checkout_date })
-            .eq('reservation_id', selectedReservation.id)
-
-          if (cleaningError) throw cleaningError
-        }
-      } else {
-        // Add new reservation
-        const { data: newReservation, error } = await supabase
-          .from('reservations')
-          .insert(reservationData)
-          .select()
-          .single()
-
-        if (error) throw error
-
-        // Create cleaning session for checkout day
-        const { error: cleaningError } = await supabase
-          .from('cleaning_sessions')
-          .insert({
-            apartment_id: reservationData.apartment_id,
-            reservation_id: newReservation.id,
-            scheduled_date: reservationData.checkout_date,
-            status: 'pending'
-          })
-
-        if (cleaningError) throw cleaningError
-      }
-
-      fetchData()
-      setIsModalOpen(false)
-      setSelectedReservation(undefined)
-    } catch (error) {
-      console.error('Error saving reservation:', error)
-      alert('Failed to save reservation. Please try again.')
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this reservation? This will also delete associated cleaning sessions.')) {
-      return
-    }
-
-    try {
-      const { error } = await supabase
+      setLoading(true)
+      const { data, error } = await supabase
         .from('reservations')
-        .delete()
-        .eq('id', id)
+        .select('*')
+        .order('checkin_date', { ascending: true })
 
       if (error) throw error
-
-      fetchData()
+      setReservations(data || [])
     } catch (error) {
-      console.error('Error deleting reservation:', error)
-      alert('Failed to delete reservation. Please try again.')
+      console.error('Error fetching reservations:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const filteredReservations = selectedApartment === 'all'
-    ? reservations
-    : reservations.filter(r => r.apartment_id === selectedApartment)
-
   return (
-    <MainLayout user={user}>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-semibold text-gray-900">Reservations</h1>
-          <div className="flex space-x-3">
-            <select
-              className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              value={selectedApartment}
-              onChange={(e) => setSelectedApartment(e.target.value)}
-            >
-              <option value="all">All Apartments</option>
-              {apartments.map((apartment) => (
-                <option key={apartment.id} value={apartment.id}>
-                  {apartment.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex rounded-md shadow-sm">
-              <Button
-                variant={view === 'calendar' ? 'primary' : 'secondary'}
-                onClick={() => setView('calendar')}
-              >
-                Calendar
-              </Button>
-              <Button
-                variant={view === 'list' ? 'primary' : 'secondary'}
-                onClick={() => setView('list')}
-              >
-                List
-              </Button>
-            </div>
-            <Button
-              onClick={() => {
-                setSelectedReservation(undefined)
-                setIsModalOpen(true)
-              }}
-            >
-              Add Reservation
-            </Button>
+    <MainLayout>
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="sm:flex sm:items-center">
+          <div className="sm:flex-auto">
+            <h1 className="text-xl font-semibold text-gray-900">Reservations</h1>
+            <p className="mt-2 text-sm text-gray-700">
+              A list of all reservations including guest details and dates.
+            </p>
+          </div>
+          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+            <Button onClick={() => setShowModal(true)}>Add Reservation</Button>
           </div>
         </div>
-
-        {view === 'calendar' ? (
-          <ReservationCalendar
-            reservations={filteredReservations}
-            cleaningSessions={cleaningSessions}
-            onEventClick={(info) => {
-              if (info.event.extendedProps.type === 'reservation') {
-                const reservation = reservations.find(r => r.id === info.event.id)
-                if (reservation) {
-                  setSelectedReservation(reservation)
-                  setIsModalOpen(true)
-                }
-              }
-            }}
-          />
-        ) : (
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
-              {filteredReservations.map((reservation) => (
-                <li key={reservation.id}>
-                  <div className="px-4 py-4 flex items-center justify-between sm:px-6">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-medium text-indigo-600 truncate">
-                          {reservation.guest_name}
-                        </p>
-                        <div className="ml-2 flex-shrink-0 flex">
-                          <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                            ${reservation.source === 'airbnb' ? 'bg-red-100 text-red-800' : 
-                              reservation.source === 'booking' ? 'bg-blue-100 text-blue-800' : 
-                              'bg-gray-100 text-gray-800'}`}>
-                            {reservation.source}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-2 flex justify-between">
-                        <div className="sm:flex">
-                          <p className="flex items-center text-sm text-gray-500">
-                            {reservation.apartments?.name} • {reservation.guest_count || 0} guests
-                          </p>
-                        </div>
-                        <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                          <p>
-                            {new Date(reservation.checkin_date).toLocaleDateString()} - {new Date(reservation.checkout_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="ml-4 flex-shrink-0 flex space-x-3">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedReservation(reservation)
-                          setIsModalOpen(true)
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => handleDelete(reservation.id)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </li>
+        {loading ? (
+          <div className="mt-6">
+            <div className="animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white shadow rounded-lg p-4 mb-4">
+                  <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
               ))}
-            </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-8 flex flex-col">
+            <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+              <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-300">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Guest
+                        </th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Check-in
+                        </th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Check-out
+                        </th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {reservations.map((reservation) => (
+                        <tr key={reservation.id}>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            <div className="font-medium text-gray-900">{reservation.guest_name}</div>
+                            <div className="text-gray-500">{reservation.guest_email}</div>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {new Date(reservation.checkin_date).toLocaleDateString()}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {new Date(reservation.checkout_date).toLocaleDateString()}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
+                              reservation.status === 'confirmed' 
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {reservation.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         )}
-
-        <ReservationModal
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false)
-            setSelectedReservation(undefined)
-          }}
-          onSubmit={handleAddEdit}
-          reservation={selectedReservation}
-          apartments={apartments}
-        />
       </div>
+      {showModal && (
+        <ReservationModal
+          open={showModal}
+          onClose={() => setShowModal(false)}
+          onSuccess={() => {
+            setShowModal(false)
+            fetchReservations()
+          }}
+        />
+      )}
     </MainLayout>
   )
 }
