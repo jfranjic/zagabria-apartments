@@ -62,3 +62,351 @@ body {
   border-radius: 0.5rem;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
+
+/* Calendar customization */
+.react-calendar {
+  width: 100% !important;
+  border: none !important;
+  background: transparent !important;
+  font-family: inherit !important;
+}
+
+.react-calendar__navigation {
+  margin-bottom: 1rem !important;
+}
+
+.react-calendar__navigation button {
+  border-radius: 0.5rem !important;
+  min-width: 44px !important;
+  background: none !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  color: #1e40af !important;
+}
+
+.react-calendar__navigation button:disabled {
+  color: #9ca3af !important;
+}
+
+.react-calendar__navigation button:enabled:hover,
+.react-calendar__navigation button:enabled:focus {
+  background-color: #f3f4f6 !important;
+}
+
+.react-calendar__month-view__weekdays {
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+  color: #6b7280 !important;
+}
+
+.react-calendar__tile {
+  padding: 0.75em 0.5em !important;
+  border-radius: 0.5rem !important;
+  position: relative !important;
+  font-weight: 500 !important;
+  color: #1f2937 !important;
+  font-size: 0.95rem !important;
+}
+
+.react-calendar__tile:enabled:hover,
+.react-calendar__tile:enabled:focus {
+  background-color: #f3f4f6 !important;
+}
+
+.react-calendar__tile--now {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+  font-weight: 600 !important;
+}
+
+.react-calendar__tile--active {
+  background-color: #bfdbfe !important;
+  color: #1e40af !important;
+  font-weight: 600 !important;
+}
+
+.react-calendar__month-view__days__day--neighboringMonth {
+  color: #d1d5db !important;
+  font-weight: 400 !important;
+  font-size: 0.9rem !important;
+}
+
+.react-calendar__navigation__label {
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  text-transform: capitalize !important;
+  color: #1f2937 !important;
+  padding: 0.5rem !important;
+  border-radius: 0.5rem !important;
+  transition: background-color 0.2s !important;
+}
+
+.react-calendar__navigation__label:hover {
+  background-color: #f3f4f6 !important;
+  cursor: pointer !important;
+}
+
+/* Month picker customization */
+.react-calendar__year-view__months {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 0.5rem !important;
+  padding: 0.5rem !important;
+}
+
+.react-calendar__year-view__months__month {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: auto !important;
+  padding: 0.75rem 0.5rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.2s !important;
+  background: transparent !important;
+}
+
+.react-calendar__year-view__months__month:enabled:hover,
+.react-calendar__year-view__months__month:enabled:focus {
+  background-color: #f3f4f6 !important;
+}
+
+.react-calendar__year-view__months__month--active {
+  background-color: #dbeafe !important;
+}
+
+.react-calendar__year-view__months__month abbr {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  text-decoration: none !important;
+  width: 100% !important;
+}
+
+.month-name-hr {
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+  font-size: 0.95rem !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+.month-name-en {
+  font-weight: 400 !important;
+  color: #6b7280 !important;
+  font-size: 0.8rem !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+/* Month title button */
+.month-title-button {
+  background: none !important;
+  border: none !important;
+  padding: 4px 8px !important;
+  font-size: 1rem !important;
+  color: #1a1a1a !important;
+  cursor: pointer !important;
+  border-radius: 4px !important;
+}
+
+.month-title-button:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Calendar grid layout */
+.calendar-wrapper {
+  position: relative !important;
+}
+
+.react-calendar__month-view__days {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+}
+
+.react-calendar__month-view__days__day {
+  height: 80px !important;
+  position: relative !important;
+  padding-bottom: 28px !important;
+}
+
+.react-calendar__tile {
+  position: relative !important;
+}
+
+/* Calendar container */
+.calendar-with-reservations .react-calendar__month-view__days {
+  position: relative !important;
+}
+
+/* Calendar tile styles */
+.react-calendar__month-view__days__day {
+  height: 80px !important;
+  position: relative !important;
+  padding-bottom: 28px !important;
+}
+
+.react-calendar__tile {
+  position: relative !important;
+}
+
+/* Reservation styles */
+.tile-content {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 4px !important;
+  height: 24px !important;
+  overflow: visible !important;
+  z-index: 10 !important;
+}
+
+.reservation-bar {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  margin: 0 1px !important;
+  height: 100% !important;
+  background-color: #007bff !important;
+  color: white !important;
+  padding: 2px 4px !important;
+  font-size: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  z-index: 20 !important;
+}
+
+.reservation-bar.start {
+  margin-left: 4px !important;
+  border-top-left-radius: 4px !important;
+  border-bottom-left-radius: 4px !important;
+}
+
+.reservation-bar.end {
+  margin-right: 4px !important;
+  border-top-right-radius: 4px !important;
+  border-bottom-right-radius: 4px !important;
+}
+
+.guest-name {
+  position: absolute !important;
+  left: 4px !important;
+  right: 4px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  z-index: 30 !important;
+}
+
+.reservation-bar.manual {
+  background-color: #8B4513 !important;
+}
+
+.reservation-bar.airbnb {
+  background-color: #FF385C !important;
+}
+
+.reservation-bar.booking {
+  background-color: #003580 !important;
+}
+
+/* Grid layout */
+@media (min-width: 768px) {
+  .grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+/* FullCalendar styles */
+.fc {
+  font-family: inherit !important;
+}
+
+.calendar-header {
+  position: relative !important;
+  z-index: 9999 !important;
+}
+
+.fc-toolbar-chunk {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.fc-toolbar-title {
+  font-size: 1rem !important;
+  cursor: pointer !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  transition: background-color 0.2s !important;
+}
+
+.fc-toolbar-title:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.fc-view-harness {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.fc-prev-button,
+.fc-next-button {
+  background: none !important;
+  border: none !important;
+  color: #1a1a1a !important;
+  padding: 4px 8px !important;
+  margin: 0 4px !important;
+}
+
+.fc-prev-button:hover,
+.fc-next-button:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.fc-daygrid-day {
+  height: 80px !important;
+}
+
+.fc-daygrid-event {
+  margin: 1px 2px !important;
+  padding: 2px 4px !important;
+  font-size: 12px !important;
+}
+
+.fc-event-title {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.fc-day-today {
+  background-color: #f8fafc !important;
+}
+
+.fc-header-toolbar {
+  margin-bottom: 0.5em !important;
+}
+
+.fc-button {
+  background-color: transparent !important;
+  border: none !important;
+  color: #1a1a1a !important;
+}
+
+.fc-button:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.fc-button:focus {
+  box-shadow: none !important;
+}
+
+.fc-day-header {
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+}
