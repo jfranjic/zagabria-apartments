@@ -16,8 +16,8 @@ interface Apartment {
 interface Reservation {
   id: string
   apartment_id: string
-  checkin_date: string
-  checkout_date: string
+  check_in: string
+  check_out: string
   guest_name: string
   source: 'manual' | 'airbnb' | 'booking'
 }
@@ -132,8 +132,8 @@ export default function ApartmentList() {
             .map(res => ({
               id: res.id,
               title: res.guest_name,
-              start: res.checkin_date,
-              end: res.checkout_date,
+              start: res.check_in,
+              end: res.check_out,
               backgroundColor: getEventColor(res.source),
               borderColor: getEventColor(res.source),
               classNames: ['reservation-event'],

@@ -52,8 +52,8 @@ export async function POST() {
               .insert({
                 apartment_id: apartment.id,
                 guest_name: event.summary || 'Guest',
-                checkin_date: start.toISOString().split('T')[0],
-                checkout_date: end.toISOString().split('T')[0],
+                check_in: start.toISOString().split('T')[0],
+                check_out: end.toISOString().split('T')[0],
                 source,
                 external_id: event.uid,
                 notes: event.description

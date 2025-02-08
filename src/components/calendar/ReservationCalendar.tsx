@@ -34,8 +34,8 @@ export default function ReservationCalendar({
     const reservationEvents = reservations.map((reservation): Event => ({
       id: reservation.id,
       title: `${reservation.guest_name} (${reservation.source})`,
-      start: reservation.checkin_date,
-      end: reservation.checkout_date,
+      start: reservation.check_in,
+      end: reservation.check_out,
       backgroundColor: getReservationColor(reservation.source),
       borderColor: getReservationColor(reservation.source),
       textColor: '#ffffff',

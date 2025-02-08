@@ -5,24 +5,41 @@ import { supabase } from '@/lib/supabase'
 import MainLayout from '@/components/layout/MainLayout'
 import Button from '@/components/ui/Button'
 import ReservationModal from '@/components/reservations/ReservationModal'
+import ReservationStatus from '@/components/reservations/ReservationStatus'
+import { format, parseISO } from 'date-fns'
+import { hr } from 'date-fns/locale'
 
 interface Reservation {
   id: string
   apartment_id: string
   guest_name: string
   guest_email: string
-  checkin_date: string
-  checkout_date: string
+  guest_phone: string
+  guests_count: number
+  check_in: string
+  check_out: string
   status: string
+  notes: string
+  apartments: {
+    name: string
+  }
+}
+
+interface Apartment {
+  id: string
+  name: string
 }
 
 export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([])
+  const [apartments, setApartments] = useState<Apartment[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
 
   useEffect(() => {
     fetchReservations()
+    fetchApartments()
   }, [])
 
   const fetchReservations = async () => {
@@ -30,8 +47,8 @@ export default function ReservationsPage() {
       setLoading(true)
       const { data, error } = await supabase
         .from('reservations')
-        .select('*')
-        .order('checkin_date', { ascending: true })
+        .select('*, apartments(name)')
+        .order('check_in', { ascending: true })
 
       if (error) throw error
       setReservations(data || [])
@@ -40,6 +57,38 @@ export default function ReservationsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchApartments = async () => {
+    try {
+      const { data: apartments, error } = await supabase
+        .from('apartments')
+        .select('*')
+      
+      if (error) throw error
+      setApartments(apartments || [])
+    } catch (error) {
+      console.error('Error fetching apartments:', error)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('reservations')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      fetchReservations()
+    } catch (error) {
+      console.error('Error deleting reservation:', error)
+    }
+  }
+
+  const formatDate = (date: string) => {
+    const d = new Date(date)
+    return format(d, "dd. MM. yyyy. (EEEE) 'u' HH:mm", { locale: hr })
   }
 
   return (
@@ -79,6 +128,12 @@ export default function ReservationsPage() {
                           Guest
                         </th>
                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Contact
+                        </th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Apartment
+                        </th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                           Check-in
                         </th>
                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
@@ -87,29 +142,72 @@ export default function ReservationsPage() {
                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                           Status
                         </th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Notes
+                        </th>
+                        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                          <span className="sr-only">Actions</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 bg-white">
                       {reservations.map((reservation) => (
                         <tr key={reservation.id}>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                          <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                             <div className="font-medium text-gray-900">{reservation.guest_name}</div>
-                            <div className="text-gray-500">{reservation.guest_email}</div>
+                            <div className="text-gray-500">{reservation.guests_count} {reservation.guests_count === 1 ? 'guest' : 'guests'}</div>
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            {new Date(reservation.checkin_date).toLocaleDateString()}
+                            <div className="text-gray-500">
+                              <a 
+                                href={`mailto:${reservation.guest_email}`} 
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {reservation.guest_email}
+                              </a>
+                            </div>
+                            {reservation.guest_phone && (
+                              <div className="text-gray-500 mt-1">
+                                <a 
+                                  href={`tel:${reservation.guest_phone}`}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                  {reservation.guest_phone}
+                                </a>
+                              </div>
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            {new Date(reservation.checkout_date).toLocaleDateString()}
+                            {reservation.apartments?.name}
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                              reservation.status === 'confirmed' 
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {reservation.status}
-                            </span>
+                            {formatDate(reservation.check_in)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {formatDate(reservation.check_out)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            <ReservationStatus checkIn={reservation.check_in} checkOut={reservation.check_out} />
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {reservation.notes}
+                          </td>
+                          <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
+                            <button
+                              onClick={() => {
+                                setSelectedReservation(reservation)
+                                setShowModal(true)
+                              }}
+                              className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(reservation.id)}
+                              className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -123,12 +221,18 @@ export default function ReservationsPage() {
       </div>
       {showModal && (
         <ReservationModal
-          open={showModal}
-          onClose={() => setShowModal(false)}
-          onSuccess={() => {
+          isOpen={showModal}
+          reservation={selectedReservation}
+          onClose={() => {
             setShowModal(false)
-            fetchReservations()
+            setSelectedReservation(null)
           }}
+          onSave={() => {
+            fetchReservations()
+            setShowModal(false)
+            setSelectedReservation(null)
+          }}
+          apartments={apartments}
         />
       )}
     </MainLayout>

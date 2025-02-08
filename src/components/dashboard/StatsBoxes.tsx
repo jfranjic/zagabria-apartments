@@ -29,26 +29,26 @@ export default function StatsBoxes() {
 
         // Get active reservations (current date falls between checkin_date and checkout_date)
         const today = new Date().toISOString().split('T')[0]
-        const { data: activeReservations, error: activeError } = await supabase
+        const { count: activeReservationsCount, error: activeError } = await supabase
           .from('reservations')
-          .select('*')
-          .lte('checkin_date', today)
-          .gte('checkout_date', today)
+          .select('count')
+          .lte('check_in', today)
+          .gte('check_out', today)
 
         if (activeError) throw activeError
 
         // Get upcoming reservations (checkin_date is in the future)
-        const { data: upcomingReservations, error: upcomingError } = await supabase
+        const { count: upcomingReservationsCount, error: upcomingError } = await supabase
           .from('reservations')
-          .select('*')
-          .gt('checkin_date', today)
+          .select('count')
+          .gt('check_in', today)
 
         if (upcomingError) throw upcomingError
 
         setStats({
           totalApartments: apartmentsCount || 0,
-          activeReservations: activeReservations?.length || 0,
-          upcomingReservations: upcomingReservations?.length || 0
+          activeReservations: activeReservationsCount || 0,
+          upcomingReservations: upcomingReservationsCount || 0
         })
       } catch (error) {
         console.error('Error fetching stats:', error)

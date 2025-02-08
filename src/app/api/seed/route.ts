@@ -60,47 +60,52 @@ export async function GET() {
         {
           apartment_id: apartments[0].id,
           guest_name: 'John Doe',
-          email: 'john@example.com',
-          checkin_date: '2025-02-01',
-          checkout_date: '2025-02-10',
-          source: 'manual',
-          guest_count: 2
+          guest_email: 'john@example.com',
+          guest_phone: '+385 91 234 5678',
+          guests_count: 2,
+          check_in: '2025-02-01',
+          check_out: '2025-02-05',
+          source: 'manual'
         },
         {
           apartment_id: apartments[1].id,
           guest_name: 'Jane Smith',
-          email: 'jane@example.com',
-          checkin_date: '2025-02-15',
-          checkout_date: '2025-02-20',
-          source: 'manual',
-          guest_count: 3
+          guest_email: 'jane@example.com',
+          guest_phone: '+385 98 765 4321',
+          guests_count: 3,
+          check_in: '2025-02-15',
+          check_out: '2025-02-20',
+          source: 'manual'
         },
         {
           apartment_id: apartments[2].id,
           guest_name: 'Bob Wilson',
-          email: 'bob@example.com',
-          checkin_date: '2025-03-01',
-          checkout_date: '2025-03-05',
-          source: 'manual',
-          guest_count: 2
+          guest_email: 'bob@example.com',
+          guest_phone: '+385 95 123 4567',
+          guests_count: 2,
+          check_in: '2025-03-01',
+          check_out: '2025-03-07',
+          source: 'manual'
         },
         {
           apartment_id: apartments[3].id,
           guest_name: 'Alice Brown',
-          email: 'alice@example.com',
-          checkin_date: '2025-02-05',
-          checkout_date: '2025-02-12',
-          source: 'airbnb',
-          guest_count: 4
+          guest_email: 'alice@example.com',
+          guest_phone: '+385 99 876 5432',
+          guests_count: 4,
+          check_in: '2025-02-05',
+          check_out: '2025-02-10',
+          source: 'airbnb'
         },
         {
           apartment_id: apartments[4].id,
           guest_name: 'Charlie Davis',
-          email: 'charlie@example.com',
-          checkin_date: '2025-02-08',
-          checkout_date: '2025-02-15',
-          source: 'booking',
-          guest_count: 2
+          guest_email: 'charlie@example.com',
+          guest_phone: '+385 92 345 6789',
+          guests_count: 2,
+          check_in: '2025-02-08',
+          check_out: '2025-02-12',
+          source: 'booking'
         }
       ])
 
