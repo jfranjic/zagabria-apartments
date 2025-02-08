@@ -1,33 +1,13 @@
-'use client'
+import { useState } from 'react'
+import { createBrowserSupabaseClient } from '@/lib/supabase'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Button from '@/components/ui/Button'
-import { supabase } from '@/lib/supabase'
-
-export default function LoginPage() {
+export default function AuthForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
-
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        console.log('Checking session on login page')
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session?.user?.id) {
-          console.log('User already logged in, redirecting to dashboard')
-          router.replace('/dashboard')
-        }
-      } catch (error) {
-        console.error('Error checking session:', error)
-      }
-    }
-    checkSession()
-  }, [router])
+  
+  const supabase = createBrowserSupabaseClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,24 +15,13 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      console.log('Attempting to sign in with:', { email })
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        console.error('Sign in error:', error)
-        throw error
-      }
-
-      console.log('Sign in successful:', data)
-      
-      // Wait a bit for the session to be set
-      await new Promise(resolve => setTimeout(resolve, 500))
-      router.replace('/dashboard')
+      if (error) throw error
     } catch (error: any) {
-      console.error('Caught error:', error)
       setError(error.message)
     } finally {
       setLoading(false)
@@ -64,11 +33,8 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Zagabria Apartments
+            Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to manage your apartments
-          </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
@@ -111,13 +77,13 @@ export default function LoginPage() {
           )}
 
           <div>
-            <Button
+            <button
               type="submit"
-              className="w-full"
               disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
               {loading ? 'Signing in...' : 'Sign in'}
-            </Button>
+            </button>
           </div>
         </form>
       </div>

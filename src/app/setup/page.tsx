@@ -1,33 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/ui/Button'
-import { supabase } from '@/lib/supabase'
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+export default function SetupPage() {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    full_name: ''
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        console.log('Checking session on login page')
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session?.user?.id) {
-          console.log('User already logged in, redirecting to dashboard')
-          router.replace('/dashboard')
-        }
-      } catch (error) {
-        console.error('Error checking session:', error)
-      }
-    }
-    checkSession()
-  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,24 +20,23 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      console.log('Attempting to sign in with:', { email })
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
       })
 
-      if (error) {
-        console.error('Sign in error:', error)
-        throw error
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create admin user')
       }
 
-      console.log('Sign in successful:', data)
-      
-      // Wait a bit for the session to be set
-      await new Promise(resolve => setTimeout(resolve, 500))
-      router.replace('/dashboard')
+      alert('Admin user created successfully! You can now log in.')
+      router.push('/')
     } catch (error: any) {
-      console.error('Caught error:', error)
       setError(error.message)
     } finally {
       setLoading(false)
@@ -64,14 +48,29 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Zagabria Apartments
+            Create Admin Account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to manage your apartments
+            Set up the first administrator account for your application
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="full_name" className="sr-only">
+                Full Name
+              </label>
+              <input
+                id="full_name"
+                name="full_name"
+                type="text"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Full Name"
+                value={formData.full_name}
+                onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+              />
+            </div>
             <div>
               <label htmlFor="email-address" className="sr-only">
                 Email address
@@ -82,10 +81,10 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
               />
             </div>
             <div>
@@ -100,8 +99,8 @@ export default function LoginPage() {
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={formData.password}
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
               />
             </div>
           </div>
@@ -116,7 +115,7 @@ export default function LoginPage() {
               className="w-full"
               disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Creating account...' : 'Create Admin Account'}
             </Button>
           </div>
         </form>
