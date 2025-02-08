@@ -4,8 +4,7 @@ interface MonthPickerProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (month: number) => void;
-  currentMonth: number;
-  buttonRef: React.RefObject<HTMLButtonElement>;
+  buttonClassName?: string;
 }
 
 const monthNamesHr = [
@@ -38,20 +37,20 @@ const monthNamesEn = [
   'December'
 ];
 
-export default function MonthPicker({ isOpen, onClose, onSelect, currentMonth, buttonRef }: MonthPickerProps) {
+export default function MonthPicker({
+  isOpen,
+  onClose,
+  onSelect,
+  buttonClassName
+}: MonthPickerProps) {
   const popupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        popupRef.current && 
-        !popupRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
-      ) {
+    function handleClickOutside(event: MouseEvent) {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
         onClose();
       }
-    };
+    }
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
@@ -60,50 +59,27 @@ export default function MonthPicker({ isOpen, onClose, onSelect, currentMonth, b
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, onClose, buttonRef]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  // Izračunaj poziciju popupa relativno na gumb
-  const buttonRect = buttonRef.current?.getBoundingClientRect();
-  const style = buttonRect ? {
-    position: 'absolute' as const,
-    top: '100%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    marginTop: '4px',
-    zIndex: 9999,
-  } : {};
-
-  // Kreiraj array od 12 mjeseci
-  const months = Array.from({ length: 12 }, (_, i) => ({
-    index: i,
-    number: i + 1,
-    nameHr: monthNamesHr[i],
-    nameEn: monthNamesEn[i]
-  }));
 
   return (
     <div 
       ref={popupRef}
-      className="absolute bg-white rounded-lg shadow-xl border border-gray-200 p-4"
-      style={style}
+      className="absolute z-[9999] mt-2 p-4 bg-white rounded-xl shadow-xl ring-1 ring-black/5"
     >
-      <div className="grid grid-cols-3 gap-2 w-[360px]">
-        {months.map((month) => (
+      <div className="grid grid-cols-4 gap-2">
+        {monthNamesHr.map((monthHr, index) => (
           <button
-            key={month.index}
+            key={index}
             onClick={() => {
-              onSelect(month.index);
+              onSelect(index);
               onClose();
             }}
-            className={`flex flex-col items-center p-2 hover:bg-gray-100 rounded transition-colors ${
-              currentMonth === month.index ? 'bg-blue-50 text-blue-600' : ''
-            }`}
+            className="text-left hover:bg-slate-100 text-slate-800 font-medium px-3 py-2 rounded-md transition-colors"
           >
-            <span className="text-sm font-medium">{month.number}.</span>
-            <span className="font-medium">{month.nameHr}</span>
-            <span className="text-xs text-gray-500">{month.nameEn}</span>
+            <div className="text-sm font-semibold">{`${index + 1}. ${monthHr}`}</div>
+            <div className="text-xs text-slate-600">{monthNamesEn[index]}</div>
           </button>
         ))}
       </div>

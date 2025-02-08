@@ -32,6 +32,10 @@ const monthNamesEn = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+const dayNamesHr = [
+  'Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota'
+];
+
 export default function ApartmentList() {
   const [apartments, setApartments] = useState<Apartment[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
@@ -96,11 +100,11 @@ export default function ApartmentList() {
 
   if (loading) {
     return (
-      <div className="mt-6">
+      <div className="mt-4">
         <div className="animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="mb-6 bg-white rounded-lg shadow p-6">
-              <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div key={i} className="mb-4 bg-white rounded-lg shadow p-2">
+              <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
               <div className="h-32 bg-gray-200 rounded w-full"></div>
             </div>
           ))}
@@ -111,7 +115,7 @@ export default function ApartmentList() {
 
   if (error) {
     return (
-      <div className="mt-6">
+      <div className="mt-4">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-600">{error}</p>
         </div>
@@ -120,8 +124,8 @@ export default function ApartmentList() {
   }
 
   return (
-    <div className="mt-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {apartments.map((apartment) => {
           const apartmentReservations = reservations
             .filter(res => res.apartment_id === apartment.id)
@@ -139,24 +143,21 @@ export default function ApartmentList() {
             }))
 
           return (
-            <div key={apartment.id} className="bg-white rounded-lg shadow p-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">{apartment.name}</h3>
-              <div className="relative" data-apartment-id={apartment.id}>
+            <div key={apartment.id} className="bg-white rounded-xl shadow-lg ring-1 ring-black/5">
+              <h3 className="text-lg font-medium text-gray-900 px-4 py-3 border-b">{apartment.name}</h3>
+              <div className="relative p-2" data-apartment-id={apartment.id}>
                 <div className="calendar-header relative">
                   <MonthPicker
                     isOpen={monthPickerOpen[apartment.id] || false}
                     onClose={() => setMonthPickerOpen(prev => ({ ...prev, [apartment.id]: false }))}
                     onSelect={(month) => {
-                      const calendar = calendarRefs.current[apartment.id];
-                      if (calendar) {
-                        const currentDate = calendar.getApi().getDate();
-                        currentDate.setMonth(month);
-                        calendar.getApi().gotoDate(currentDate);
+                      const api = calendarRefs.current[apartment.id]?.getApi();
+                      if (api) {
+                        const currentDate = api.getDate();
+                        api.gotoDate(new Date(currentDate.getFullYear(), month, 1));
                         setMonthPickerOpen(prev => ({ ...prev, [apartment.id]: false }));
                       }
                     }}
-                    currentMonth={calendarRefs.current[apartment.id]?.getApi().getDate().getMonth() || new Date().getMonth()}
-                    buttonRef={{ current: titleButtonRefs.current[apartment.id] }}
                   />
                 </div>
                 <FullCalendar
@@ -179,7 +180,9 @@ export default function ApartmentList() {
                     return `${monthNumber}. ${monthNamesHr[month]} / ${monthNamesEn[month]}`;
                   }}
                   dayHeaderFormat={{ weekday: 'short' }}
+                  locale="hr"
                   height="auto"
+                  aspectRatio={1.35}
                   firstDay={1}
                   datesSet={(dateInfo) => {
                     // Ažuriraj naslov kad se promijeni datum

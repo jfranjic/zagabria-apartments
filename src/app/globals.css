@@ -324,6 +324,11 @@ body {
 /* FullCalendar styles */
 .fc {
   font-family: inherit !important;
+  margin: 0 !important;
+  background: white !important;
+  padding: 0.75rem !important;
+  border-radius: 0.75rem !important;
+  overflow: hidden !important;
 }
 
 .calendar-header {
@@ -337,15 +342,19 @@ body {
 }
 
 .fc-toolbar-title {
-  font-size: 1rem !important;
+  font-size: 1.125rem !important;
+  font-weight: 700 !important;
   cursor: pointer !important;
-  padding: 4px 8px !important;
-  border-radius: 4px !important;
-  transition: background-color 0.2s !important;
+  padding: 4px 12px !important;
+  border-radius: 6px !important;
+  transition: all 0.2s !important;
+  color: #1e293b !important;
+  background-color: #f8fafc !important;
 }
 
 .fc-toolbar-title:hover {
   background-color: #f1f5f9 !important;
+  color: #0f172a !important;
 }
 
 .fc-view-harness {
@@ -353,28 +362,65 @@ body {
   z-index: 1 !important;
 }
 
-.fc-prev-button,
-.fc-next-button {
-  background: none !important;
+/* Dani u tjednu */
+.fc-col-header-cell {
+  padding: 8px 0 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 0.8rem !important;
+  background-color: #f8fafc !important;
   border: none !important;
-  color: #1a1a1a !important;
-  padding: 4px 8px !important;
-  margin: 0 4px !important;
+  color: #475569 !important;
 }
 
-.fc-prev-button:hover,
-.fc-next-button:hover {
-  background-color: #f1f5f9 !important;
+.fc-col-header {
+  background-color: #f8fafc !important;
+  margin-bottom: 0.5rem !important;
+  border-radius: 0.5rem !important;
 }
 
+/* Dani u mjesecu */
+.fc-daygrid-day-number {
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  padding: 2px 4px !important;
+  color: #1e293b !important;
+}
+
+/* Dani van mjeseca */
+.fc-day-other .fc-daygrid-day-number {
+  color: #94a3b8 !important;
+  font-weight: 400 !important;
+}
+
+/* Današnji dan */
+.fc-day-today {
+  background-color: #e0f2fe !important;
+}
+
+.fc-day-today .fc-daygrid-day-number {
+  background-color: #0ea5e9 !important;
+  color: white !important;
+  border-radius: 9999px !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 2px !important;
+}
+
+/* Visina ćelija */
 .fc-daygrid-day {
-  height: 80px !important;
+  min-height: 65px !important;
 }
 
+/* Eventi */
 .fc-daygrid-event {
   margin: 1px 2px !important;
-  padding: 2px 4px !important;
-  font-size: 12px !important;
+  padding: 1px 4px !important;
+  border-radius: 4px !important;
+  font-size: 0.75rem !important;
 }
 
 .fc-event-title {
@@ -383,30 +429,54 @@ body {
   white-space: nowrap !important;
 }
 
-.fc-day-today {
-  background-color: #f8fafc !important;
-}
-
+/* Smanjiti margine */
 .fc-header-toolbar {
-  margin-bottom: 0.5em !important;
+  margin: 0.5rem !important;
+  padding: 0 0.25rem !important;
 }
 
-.fc-button {
-  background-color: transparent !important;
+/* Ukloniti scroll */
+.fc-scroller {
+  overflow: hidden !important;
+}
+
+/* Fiksna visina body-a */
+.fc-daygrid-body {
+  height: auto !important;
+}
+
+/* Ukloniti bordere */
+.fc-scrollgrid {
   border: none !important;
-  color: #1a1a1a !important;
 }
 
-.fc-button:hover {
-  background-color: #f1f5f9 !important;
+.fc-scrollgrid-section > td {
+  border: none !important;
 }
 
-.fc-button:focus {
-  box-shadow: none !important;
+.fc-daygrid-day {
+  border-color: #f1f5f9 !important;
 }
 
-.fc-day-header {
-  font-weight: 500 !important;
-  text-transform: uppercase !important;
-  font-size: 0.75rem !important;
+.fc td, .fc th {
+  border-style: solid !important;
+  border-color: #f1f5f9 !important;
+}
+
+/* Gumbi za navigaciju */
+.fc-prev-button,
+.fc-next-button {
+  background: none !important;
+  border: none !important;
+  color: #1e293b !important;
+  padding: 4px 8px !important;
+  margin: 0 4px !important;
+  opacity: 0.8 !important;
+  transition: opacity 0.2s !important;
+}
+
+.fc-prev-button:hover,
+.fc-next-button:hover {
+  opacity: 1 !important;
+  background: none !important;
 }
