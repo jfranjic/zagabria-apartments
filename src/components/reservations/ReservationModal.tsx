@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Apartment, Reservation, ReservationSource } from '@/types';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, setHours, setMinutes } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 
 interface ReservationModalProps {
@@ -30,6 +30,11 @@ const COUNTRIES = [
   { code: 'US', name: 'United States' }
 ];
 
+// Default check-in time is 15:00 (3 PM)
+const DEFAULT_CHECK_IN_TIME = setHours(setMinutes(new Date(), 0), 15);
+// Default check-out time is 10:00 (10 AM)
+const DEFAULT_CHECK_OUT_TIME = setHours(setMinutes(new Date(), 0), 10);
+
 export default function ReservationModal({
   isOpen,
   reservation,
@@ -43,11 +48,17 @@ export default function ReservationModal({
     guests_count: reservation?.guests_count || 1,
     guest_email: reservation?.guest_email || '',
     guest_phone: reservation?.guest_phone || '',
-    check_in: reservation?.check_in ? format(parseISO(reservation.check_in), "yyyy-MM-dd'T'HH:mm") : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-    check_out: reservation?.check_out ? format(parseISO(reservation.check_out), "yyyy-MM-dd'T'HH:mm") : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-    estimated_arrival_time: reservation?.estimated_arrival_time || '',
+    check_in: reservation?.check_in 
+      ? format(parseISO(reservation.check_in), "yyyy-MM-dd") 
+      : format(DEFAULT_CHECK_IN_TIME, "yyyy-MM-dd"),
+    check_out: reservation?.check_out 
+      ? format(parseISO(reservation.check_out), "yyyy-MM-dd") 
+      : format(DEFAULT_CHECK_OUT_TIME, "yyyy-MM-dd"),
     notes: reservation?.notes || ''
   });
+
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (reservation) {
@@ -57,13 +68,74 @@ export default function ReservationModal({
         guests_count: reservation.guests_count,
         guest_email: reservation.guest_email || '',
         guest_phone: reservation.guest_phone || '',
-        check_in: reservation.check_in ? format(parseISO(reservation.check_in), "yyyy-MM-dd'T'HH:mm") : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        check_out: reservation.check_out ? format(parseISO(reservation.check_out), "yyyy-MM-dd'T'HH:mm") : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        estimated_arrival_time: reservation.estimated_arrival_time || '',
+        check_in: reservation.check_in 
+          ? format(parseISO(reservation.check_in), "yyyy-MM-dd") 
+          : format(DEFAULT_CHECK_IN_TIME, "yyyy-MM-dd"),
+        check_out: reservation.check_out 
+          ? format(parseISO(reservation.check_out), "yyyy-MM-dd") 
+          : format(DEFAULT_CHECK_OUT_TIME, "yyyy-MM-dd"),
         notes: reservation.notes || ''
       });
     }
   }, [reservation]);
+
+  useEffect(() => {
+    const checkDateConflicts = async () => {
+      if (!formData.apartment_id || !formData.check_in || !formData.check_out) return;
+
+      // Convert dates to UTC time with proper check-in/check-out times
+      const checkInDate = new Date(formData.check_in);
+      const checkOutDate = new Date(formData.check_out);
+      
+      checkInDate.setUTCHours(15, 0, 0, 0);
+      checkOutDate.setUTCHours(10, 0, 0, 0);
+
+      // Allow same day check-in/check-out, but check-out can't be before check-in
+      if (checkOutDate < checkInDate) {
+        setDateError('Check-out date cannot be before check-in date');
+        return;
+      }
+
+      // Validate that check-in is not in the past
+      const now = new Date();
+      now.setUTCHours(0, 0, 0, 0);
+      if (checkInDate < now) {
+        setDateError('Check-in date cannot be in the past');
+        return;
+      }
+
+      try {
+        // Query for overlapping reservations
+        let query = supabase
+          .from('reservations')
+          .select('id, check_in, check_out')
+          .eq('apartment_id', formData.apartment_id)
+          .or(
+            `and(check_in,lt.${checkOutDate.toISOString()},check_out,gt.${checkInDate.toISOString()})`
+          );
+
+        // Only add the id filter if we're editing an existing reservation
+        if (reservation?.id) {
+          query = query.neq('id', reservation.id);
+        }
+
+        const { data: conflictingReservations, error } = await query;
+
+        if (error) throw error;
+
+        if (conflictingReservations && conflictingReservations.length > 0) {
+          setDateError('These dates overlap with an existing reservation');
+        } else {
+          setDateError(null);
+        }
+      } catch (error) {
+        console.error('Error checking date conflicts:', error);
+        setDateError('Error checking date availability');
+      }
+    };
+
+    checkDateConflicts();
+  }, [formData.apartment_id, formData.check_in, formData.check_out, reservation?.id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -71,242 +143,232 @@ export default function ReservationModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setIsSubmitting(true);
+    setDateError(null);
+
     try {
-      const reservationData = {
+      // Format dates with proper check-in (15:00) and check-out (10:00) times
+      const checkInDate = new Date(formData.check_in);
+      const checkOutDate = new Date(formData.check_out);
+      
+      // Set check-in time to 15:00 UTC
+      checkInDate.setUTCHours(15, 0, 0, 0);
+      // Set check-out time to 10:00 UTC
+      checkOutDate.setUTCHours(10, 0, 0, 0);
+
+      const formattedData = {
         apartment_id: formData.apartment_id,
         guest_name: formData.guest_name,
         guests_count: parseInt(formData.guests_count.toString()),
         guest_email: formData.guest_email,
         guest_phone: formData.guest_phone,
-        check_in: formData.check_in,
-        check_out: formData.check_out,
-        estimated_arrival_time: formData.estimated_arrival_time || null,
-        notes: formData.notes,
-        source: 'manual' as const
+        check_in: checkInDate.toISOString(),
+        check_out: checkOutDate.toISOString(),
+        notes: formData.notes || '',
+        source: 'manual' as const,
+        status: 'confirmed' as const,
+        payment_status: 'pending' as const
       };
 
       if (reservation?.id) {
-        // Update existing reservation
-        const { error } = await supabase
+        const { error: updateError } = await supabase
           .from('reservations')
-          .update(reservationData)
+          .update(formattedData)
           .eq('id', reservation.id);
 
-        if (error) throw error;
+        if (updateError) throw updateError;
       } else {
-        // Create new reservation
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from('reservations')
-          .insert([reservationData]);
+          .insert([formattedData]);
 
-        if (error) throw error;
+        if (insertError) throw insertError;
       }
 
       onSave();
       onClose();
     } catch (error) {
       console.error('Error saving reservation:', error);
-      alert('Failed to save reservation. Please try again.');
+      setDateError('Failed to save reservation. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog.Root open={isOpen}>
+    <Dialog.Root open={isOpen} onOpenChange={onClose}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/30" />
-        <Dialog.Content className="fixed top-[50%] left-[50%] max-h-[85vh] w-[90vw] max-w-[800px] translate-x-[-50%] translate-y-[-50%] rounded-[6px] bg-white p-[25px] shadow-[hsl(206_22%_7%_/_35%)_0px_10px_38px_-10px,_hsl(206_22%_7%_/_20%)_0px_10px_20px_-15px] focus:outline-none overflow-y-auto">
-          <div className="flex items-center justify-between mb-6">
-            <Dialog.Title className="text-lg font-medium leading-6 text-gray-900">
-              {reservation ? 'Edit Reservation' : 'New Reservation'}
-            </Dialog.Title>
-            <Dialog.Close asChild>
+        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+        <Dialog.Content 
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+          aria-describedby="reservation-form-description"
+        >
+          <Dialog.Title className="text-xl font-semibold mb-4">
+            {reservation ? 'Edit Reservation' : 'New Reservation'}
+          </Dialog.Title>
+          
+          <p id="reservation-form-description" className="sr-only">
+            Form for {reservation ? 'editing an existing' : 'creating a new'} reservation. You can specify the apartment, guest details, and booking dates.
+          </p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {dateError && (
+              <div className="p-3 rounded-md bg-red-50 text-red-700 text-base">
+                {dateError}
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Apartment Selection */}
+              <div>
+                <label htmlFor="apartment_id" className="block text-sm font-medium text-gray-900">
+                  Apartment
+                </label>
+                <select
+                  id="apartment_id"
+                  name="apartment_id"
+                  value={formData.apartment_id}
+                  onChange={handleInputChange}
+                  required
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">Select an apartment</option>
+                  {apartments.map((apartment) => (
+                    <option key={apartment.id} value={apartment.id}>
+                      {apartment.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Guest Name */}
+              <div>
+                <label htmlFor="guest_name" className="block text-sm font-medium text-gray-900">
+                  Guest Name
+                </label>
+                <input
+                  type="text"
+                  id="guest_name"
+                  name="guest_name"
+                  value={formData.guest_name}
+                  onChange={handleInputChange}
+                  required
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Guest Count */}
+              <div>
+                <label htmlFor="guests_count" className="block text-sm font-medium text-gray-900">
+                  Number of Guests
+                </label>
+                <input
+                  type="number"
+                  id="guests_count"
+                  name="guests_count"
+                  min="1"
+                  value={formData.guests_count}
+                  onChange={handleInputChange}
+                  required
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Guest Email */}
+              <div>
+                <label htmlFor="guest_email" className="block text-sm font-medium text-gray-900">
+                  Guest Email
+                </label>
+                <input
+                  type="email"
+                  id="guest_email"
+                  name="guest_email"
+                  value={formData.guest_email}
+                  onChange={handleInputChange}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Guest Phone */}
+              <div>
+                <label htmlFor="guest_phone" className="block text-sm font-medium text-gray-900">
+                  Guest Phone
+                </label>
+                <input
+                  type="tel"
+                  id="guest_phone"
+                  name="guest_phone"
+                  value={formData.guest_phone}
+                  onChange={handleInputChange}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Check-in Date */}
+              <div>
+                <label htmlFor="check_in" className="block text-sm font-medium text-gray-900">
+                  Check-in Date (15:00)
+                </label>
+                <input
+                  type="date"
+                  id="check_in"
+                  name="check_in"
+                  value={formData.check_in}
+                  onChange={handleInputChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Check-out Date */}
+              <div>
+                <label htmlFor="check_out" className="block text-sm font-medium text-gray-900">
+                  Check-out Date (10:00)
+                </label>
+                <input
+                  type="date"
+                  id="check_out"
+                  name="check_out"
+                  value={formData.check_out}
+                  onChange={handleInputChange}
+                  min={formData.check_in || new Date().toISOString().split('T')[0]}
+                  required
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-900">
+                Notes
+              </label>
+              <textarea
+                id="notes"
+                name="notes"
+                value={formData.notes}
+                onChange={handleInputChange}
+                rows={3}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
               <button
-                className="text-gray-400 hover:text-gray-500"
+                type="button"
                 onClick={onClose}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                disabled={isSubmitting}
               >
-                <span className="sr-only">Close</span>
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Cancel
               </button>
-            </Dialog.Close>
-          </div>
-
-          <Dialog.Description className="text-sm text-gray-500 mb-4">
-            {reservation ? 'Edit the details of this reservation.' : 'Fill in the details to create a new reservation.'}
-          </Dialog.Description>
-
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-6">
-                <div className="sm:col-span-3">
-                  <label htmlFor="apartment_id" className="block text-sm font-medium leading-6 text-gray-900">
-                    Apartment
-                  </label>
-                  <div className="mt-2">
-                    <select
-                      name="apartment_id"
-                      id="apartment_id"
-                      value={formData.apartment_id}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    >
-                      <option value="">Select apartment</option>
-                      {apartments.map((apartment) => (
-                        <option key={apartment.id} value={apartment.id}>
-                          {apartment.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="guest_name" className="block text-sm font-medium leading-6 text-gray-900">
-                    Guest Name
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      type="text"
-                      name="guest_name"
-                      id="guest_name"
-                      value={formData.guest_name}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="guest_email" className="block text-sm font-medium leading-6 text-gray-900">
-                    Guest Email
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      type="email"
-                      name="guest_email"
-                      id="guest_email"
-                      value={formData.guest_email}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="guest_phone" className="block text-sm font-medium leading-6 text-gray-900">
-                    Guest Phone
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      type="tel"
-                      name="guest_phone"
-                      id="guest_phone"
-                      value={formData.guest_phone}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="guests_count" className="block text-sm font-medium leading-6 text-gray-900">
-                    Number of Guests
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      type="number"
-                      name="guests_count"
-                      id="guests_count"
-                      min="1"
-                      value={formData.guests_count}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="check_in" className="block text-sm font-medium leading-6 text-gray-900">
-                    Check-in Date & Time
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      type="datetime-local"
-                      name="check_in"
-                      id="check_in"
-                      value={formData.check_in}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="check_out" className="block text-sm font-medium leading-6 text-gray-900">
-                    Check-out Date & Time
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      type="datetime-local"
-                      name="check_out"
-                      id="check_out"
-                      value={formData.check_out}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label htmlFor="estimated_arrival_time" className="block text-sm font-medium leading-6 text-gray-900">
-                    Estimated Arrival Time
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      type="time"
-                      name="estimated_arrival_time"
-                      id="estimated_arrival_time"
-                      value={formData.estimated_arrival_time}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-6">
-                  <label htmlFor="notes" className="block text-sm font-medium leading-6 text-gray-900">
-                    Notes
-                  </label>
-                  <div className="mt-2">
-                    <textarea
-                      name="notes"
-                      id="notes"
-                      rows={3}
-                      value={formData.notes}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-end gap-x-6">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="text-sm font-semibold leading-6 text-gray-900"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                >
-                  Save
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                disabled={isSubmitting || !!dateError}
+              >
+                {isSubmitting ? 'Saving...' : 'Save'}
+              </button>
             </div>
           </form>
         </Dialog.Content>
