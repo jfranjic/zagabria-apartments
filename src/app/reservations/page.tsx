@@ -227,7 +227,7 @@ export default function ReservationsPage() {
             setShowModal(false)
             setSelectedReservation(null)
           }}
-          onSave={() => {
+          onSuccess={() => {
             fetchReservations()
             setShowModal(false)
             setSelectedReservation(null)

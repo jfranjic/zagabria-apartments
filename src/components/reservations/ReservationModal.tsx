@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Apartment, Reservation, ReservationSource } from '@/types';
 import { format, parseISO, setHours, setMinutes } from 'date-fns';
 import { supabase } from '@/lib/supabase';
@@ -8,8 +8,23 @@ interface ReservationModalProps {
   isOpen: boolean;
   reservation?: Reservation | null;
   onClose: () => void;
-  onSave: () => void;
+  onSuccess?: () => void;
   apartments: Apartment[];
+}
+
+interface FormData {
+  apartment_id: string;
+  guest_name: string;
+  guests_count: number;
+  guest_email: string;
+  guest_phone: string;
+  check_in: string;
+  check_out: string;
+  check_in_time: string;
+  check_out_time: string;
+  planned_departure_time: string;
+  notes: string;
+  daily_rental: boolean;
 }
 
 const PAYMENT_STATUSES = ['pending', 'partial', 'paid'] as const;
@@ -30,31 +45,35 @@ const COUNTRIES = [
   { code: 'US', name: 'United States' }
 ];
 
-// Default check-in time is 15:00 (3 PM)
-const DEFAULT_CHECK_IN_TIME = setHours(setMinutes(new Date(), 0), 15);
-// Default check-out time is 10:00 (10 AM)
-const DEFAULT_CHECK_OUT_TIME = setHours(setMinutes(new Date(), 0), 10);
+const DEFAULT_CHECK_IN_TIME = "15:00";
+const DEFAULT_CHECK_OUT_TIME = "10:00";
+const DEFAULT_DAILY_CHECK_IN_TIME = "08:00";
+const DEFAULT_DAILY_CHECK_OUT_TIME = "20:00";
 
 export default function ReservationModal({
   isOpen,
   reservation,
   onClose,
-  onSave,
+  onSuccess,
   apartments
 }: ReservationModalProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     apartment_id: reservation?.apartment_id || '',
     guest_name: reservation?.guest_name || '',
     guests_count: reservation?.guests_count || 1,
     guest_email: reservation?.guest_email || '',
     guest_phone: reservation?.guest_phone || '',
     check_in: reservation?.check_in 
-      ? format(parseISO(reservation.check_in), "yyyy-MM-dd") 
-      : format(DEFAULT_CHECK_IN_TIME, "yyyy-MM-dd"),
+      ? format(parseISO(reservation.check_in), "yyyy-MM-dd")
+      : format(new Date(), "yyyy-MM-dd"),
     check_out: reservation?.check_out 
-      ? format(parseISO(reservation.check_out), "yyyy-MM-dd") 
-      : format(DEFAULT_CHECK_OUT_TIME, "yyyy-MM-dd"),
-    notes: reservation?.notes || ''
+      ? format(parseISO(reservation.check_out), "yyyy-MM-dd")
+      : format(new Date(), "yyyy-MM-dd"),
+    check_in_time: DEFAULT_CHECK_IN_TIME,
+    check_out_time: DEFAULT_CHECK_OUT_TIME,
+    planned_departure_time: DEFAULT_DAILY_CHECK_OUT_TIME,
+    notes: reservation?.notes || '',
+    daily_rental: reservation?.daily_rental || false
   });
 
   const [dateError, setDateError] = useState<string | null>(null);
@@ -69,12 +88,16 @@ export default function ReservationModal({
         guest_email: reservation.guest_email || '',
         guest_phone: reservation.guest_phone || '',
         check_in: reservation.check_in 
-          ? format(parseISO(reservation.check_in), "yyyy-MM-dd") 
+          ? format(parseISO(reservation.check_in), "yyyy-MM-dd")
           : format(DEFAULT_CHECK_IN_TIME, "yyyy-MM-dd"),
         check_out: reservation.check_out 
-          ? format(parseISO(reservation.check_out), "yyyy-MM-dd") 
+          ? format(parseISO(reservation.check_out), "yyyy-MM-dd")
           : format(DEFAULT_CHECK_OUT_TIME, "yyyy-MM-dd"),
-        notes: reservation.notes || ''
+        check_in_time: DEFAULT_CHECK_IN_TIME,
+        check_out_time: DEFAULT_CHECK_OUT_TIME,
+        planned_departure_time: DEFAULT_DAILY_CHECK_OUT_TIME,
+        notes: reservation.notes || '',
+        daily_rental: reservation.daily_rental || false
       });
     }
   }, [reservation]);
@@ -87,19 +110,34 @@ export default function ReservationModal({
       const checkInDate = new Date(formData.check_in);
       const checkOutDate = new Date(formData.check_out);
       
-      checkInDate.setUTCHours(15, 0, 0, 0);
-      checkOutDate.setUTCHours(10, 0, 0, 0);
+      // For validation, we compare dates without times first
+      const checkInDay = new Date(checkInDate);
+      const checkOutDay = new Date(checkOutDate);
+      checkInDay.setUTCHours(0, 0, 0, 0);
+      checkOutDay.setUTCHours(0, 0, 0, 0);
 
-      // Allow same day check-in/check-out, but check-out can't be before check-in
-      if (checkOutDate < checkInDate) {
+      // Check-out day cannot be before check-in day
+      if (checkOutDay < checkInDay) {
         setDateError('Check-out date cannot be before check-in date');
         return;
       }
 
+      // If it's not a daily rental, check-out must be after check-in day
+      if (!formData.daily_rental && checkOutDay <= checkInDay) {
+        setDateError('For regular bookings, check-out must be at least one day after check-in');
+        return;
+      }
+
+      // Now set the proper times for database comparison
+      const [checkInHours, checkInMinutes] = formData.check_in_time.split(':').map(Number);
+      const [checkOutHours, checkOutMinutes] = formData.check_out_time.split(':').map(Number);
+      checkInDate.setUTCHours(checkInHours, checkInMinutes, 0, 0);
+      checkOutDate.setUTCHours(checkOutHours, checkOutMinutes, 0, 0);
+
       // Validate that check-in is not in the past
       const now = new Date();
       now.setUTCHours(0, 0, 0, 0);
-      if (checkInDate < now) {
+      if (checkInDay < now) {
         setDateError('Check-in date cannot be in the past');
         return;
       }
@@ -110,9 +148,8 @@ export default function ReservationModal({
           .from('reservations')
           .select('id, check_in, check_out')
           .eq('apartment_id', formData.apartment_id)
-          .or(
-            `and(check_in,lt.${checkOutDate.toISOString()},check_out,gt.${checkInDate.toISOString()})`
-          );
+          .lt('check_in', checkOutDate.toISOString())
+          .gt('check_out', checkInDate.toISOString());
 
         // Only add the id filter if we're editing an existing reservation
         if (reservation?.id) {
@@ -135,146 +172,162 @@ export default function ReservationModal({
     };
 
     checkDateConflicts();
-  }, [formData.apartment_id, formData.check_in, formData.check_out, reservation?.id]);
+  }, [formData.apartment_id, formData.check_in, formData.check_out, reservation?.id, formData.daily_rental, formData.check_in_time, formData.check_out_time]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleDailyRentalChange = (checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      daily_rental: checked,
+      check_in_time: checked ? DEFAULT_DAILY_CHECK_IN_TIME : DEFAULT_CHECK_IN_TIME,
+      check_out_time: checked ? DEFAULT_DAILY_CHECK_OUT_TIME : DEFAULT_CHECK_OUT_TIME,
+      planned_departure_time: DEFAULT_DAILY_CHECK_OUT_TIME
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setDateError(null);
+    e.preventDefault()
 
     try {
-      // Format dates with proper check-in (15:00) and check-out (10:00) times
       const checkInDate = new Date(formData.check_in);
       const checkOutDate = new Date(formData.check_out);
       
-      // Set check-in time to 15:00 UTC
-      checkInDate.setUTCHours(15, 0, 0, 0);
-      // Set check-out time to 10:00 UTC
-      checkOutDate.setUTCHours(10, 0, 0, 0);
-
-      const formattedData = {
-        apartment_id: formData.apartment_id,
-        guest_name: formData.guest_name,
-        guests_count: parseInt(formData.guests_count.toString()),
-        guest_email: formData.guest_email,
-        guest_phone: formData.guest_phone,
-        check_in: checkInDate.toISOString(),
-        check_out: checkOutDate.toISOString(),
-        notes: formData.notes || '',
-        source: 'manual' as const,
-        status: 'confirmed' as const,
-        payment_status: 'pending' as const
-      };
-
-      if (reservation?.id) {
-        const { error: updateError } = await supabase
-          .from('reservations')
-          .update(formattedData)
-          .eq('id', reservation.id);
-
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('reservations')
-          .insert([formattedData]);
-
-        if (insertError) throw insertError;
+      if (formData.daily_rental) {
+        // For daily rentals, set check-out to next day to satisfy valid_dates constraint
+        checkOutDate.setDate(checkInDate.getDate() + 1);
       }
 
-      onSave();
-      onClose();
+      // Format dates (YYYY-MM-DD)
+      const formattedCheckIn = format(checkInDate, "yyyy-MM-dd");
+      const formattedCheckOut = format(checkOutDate, "yyyy-MM-dd");
+
+      // Set times based on rental type
+      let estimatedArrivalTime = null;
+      let plannedDepartureTime = null;
+
+      if (formData.daily_rental) {
+        estimatedArrivalTime = formData.check_in_time;
+        plannedDepartureTime = formData.planned_departure_time;
+      } else {
+        estimatedArrivalTime = formData.check_in_time;
+        plannedDepartureTime = formData.check_out_time;
+      }
+
+      console.log('Form Data:', formData);
+      console.log('Check-in:', formattedCheckIn, estimatedArrivalTime);
+      console.log('Check-out:', formattedCheckOut, plannedDepartureTime);
+      console.log('Daily Rental:', formData.daily_rental);
+
+      const reservationData = {
+        apartment_id: formData.apartment_id,
+        guest_name: formData.guest_name,
+        guests_count: formData.guests_count,
+        guest_email: formData.guest_email,
+        guest_phone: formData.guest_phone,
+        check_in: formattedCheckIn,
+        check_out: formattedCheckOut,
+        estimated_arrival_time: estimatedArrivalTime,
+        planned_departure_time: plannedDepartureTime,
+        notes: formData.notes,
+        source: 'manual',
+        daily_rental: formData.daily_rental
+      };
+
+      console.log('Sending to Supabase:', reservationData);
+
+      const { data, error } = await supabase
+        .from('reservations')
+        .insert([reservationData])
+        .select()
+
+      if (error) throw error
+
+      onSuccess?.()
     } catch (error) {
-      console.error('Error saving reservation:', error);
-      setDateError('Failed to save reservation. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error saving reservation:', error)
+      setDateError(error instanceof Error ? error.message : 'Failed to save reservation');
     }
-  };
+  }
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onClose}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content 
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-          aria-describedby="reservation-form-description"
-        >
-          <Dialog.Title className="text-xl font-semibold mb-4">
-            {reservation ? 'Edit Reservation' : 'New Reservation'}
-          </Dialog.Title>
-          
-          <p id="reservation-form-description" className="sr-only">
-            Form for {reservation ? 'editing an existing' : 'creating a new'} reservation. You can specify the apartment, guest details, and booking dates.
-          </p>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {dateError && (
-              <div className="p-3 rounded-md bg-red-50 text-red-700 text-base">
-                {dateError}
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px] bg-white p-6">
+        <DialogHeader className="mb-6">
+          <DialogTitle className="text-2xl font-semibold text-gray-900">
+            {reservation ? 'Edit' : 'New'} Reservation
+          </DialogTitle>
+          <DialogDescription className="text-sm text-gray-600 mt-1">
+            Fill in the reservation details below. Fields marked with * are required.
+          </DialogDescription>
+        </DialogHeader>
+        {dateError && (
+          <div className="rounded-md bg-red-50 p-4 mb-6">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="text-sm text-red-700">{dateError}</div>
               </div>
-            )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Apartment Selection */}
-              <div>
-                <label htmlFor="apartment_id" className="block text-sm font-medium text-gray-900">
-                  Apartment
-                </label>
-                <select
-                  id="apartment_id"
-                  name="apartment_id"
-                  value={formData.apartment_id}
-                  onChange={handleInputChange}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Select an apartment</option>
-                  {apartments.map((apartment) => (
-                    <option key={apartment.id} value={apartment.id}>
-                      {apartment.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            </div>
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid gap-6">
+            <div className="space-y-2.5">
+              <label htmlFor="apartment_id" className="block text-sm font-medium text-gray-900">
+                Apartment *
+              </label>
+              <select
+                id="apartment_id"
+                name="apartment_id"
+                required
+                className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={formData.apartment_id}
+                onChange={handleInputChange}
+              >
+                <option value="">Select an apartment</option>
+                {apartments.map((apartment) => (
+                  <option key={apartment.id} value={apartment.id}>
+                    {apartment.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* Guest Name */}
-              <div>
-                <label htmlFor="guest_name" className="block text-sm font-medium text-gray-900">
-                  Guest Name
-                </label>
-                <input
-                  type="text"
-                  id="guest_name"
-                  name="guest_name"
-                  value={formData.guest_name}
-                  onChange={handleInputChange}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
+            <div className="space-y-2.5">
+              <label htmlFor="guest_name" className="block text-sm font-medium text-gray-900">
+                Guest Name *
+              </label>
+              <input
+                type="text"
+                id="guest_name"
+                name="guest_name"
+                required
+                className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={formData.guest_name}
+                onChange={handleInputChange}
+              />
+            </div>
 
-              {/* Guest Count */}
-              <div>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2.5">
                 <label htmlFor="guests_count" className="block text-sm font-medium text-gray-900">
-                  Number of Guests
+                  Number of Guests *
                 </label>
                 <input
                   type="number"
                   id="guests_count"
                   name="guests_count"
+                  required
                   min="1"
+                  className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                   value={formData.guests_count}
                   onChange={handleInputChange}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
-
-              {/* Guest Email */}
-              <div>
+              <div className="space-y-2.5">
                 <label htmlFor="guest_email" className="block text-sm font-medium text-gray-900">
                   Guest Email
                 </label>
@@ -282,97 +335,144 @@ export default function ReservationModal({
                   type="email"
                   id="guest_email"
                   name="guest_email"
+                  className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                   value={formData.guest_email}
                   onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Guest Phone */}
-              <div>
-                <label htmlFor="guest_phone" className="block text-sm font-medium text-gray-900">
-                  Guest Phone
-                </label>
-                <input
-                  type="tel"
-                  id="guest_phone"
-                  name="guest_phone"
-                  value={formData.guest_phone}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Check-in Date */}
-              <div>
-                <label htmlFor="check_in" className="block text-sm font-medium text-gray-900">
-                  Check-in Date (15:00)
-                </label>
-                <input
-                  type="date"
-                  id="check_in"
-                  name="check_in"
-                  value={formData.check_in}
-                  onChange={handleInputChange}
-                  min={new Date().toISOString().split('T')[0]}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Check-out Date */}
-              <div>
-                <label htmlFor="check_out" className="block text-sm font-medium text-gray-900">
-                  Check-out Date (10:00)
-                </label>
-                <input
-                  type="date"
-                  id="check_out"
-                  name="check_out"
-                  value={formData.check_out}
-                  onChange={handleInputChange}
-                  min={formData.check_in || new Date().toISOString().split('T')[0]}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            {/* Notes */}
-            <div>
+            <div className="space-y-2.5">
+              <label htmlFor="guest_phone" className="block text-sm font-medium text-gray-900">
+                Guest Phone
+              </label>
+              <input
+                type="tel"
+                id="guest_phone"
+                name="guest_phone"
+                className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                value={formData.guest_phone}
+                onChange={handleInputChange}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                type="checkbox"
+                id="daily_rental"
+                name="daily_rental"
+                checked={formData.daily_rental}
+                onChange={(e) => 
+                  handleDailyRentalChange(e.target.checked)
+                }
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label
+                htmlFor="daily_rental"
+                className="text-sm font-medium text-gray-900 select-none cursor-pointer"
+              >
+                Daily Rental (allows same-day check-in/out)
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2.5">
+                <label htmlFor="check_in" className="block text-sm font-medium text-gray-900">
+                  Check-in Date *
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="date"
+                    id="check_in"
+                    name="check_in"
+                    required
+                    className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                    value={formData.check_in}
+                    onChange={handleInputChange}
+                  />
+                  <input
+                    type="time"
+                    id="check_in_time"
+                    name="check_in_time"
+                    required
+                    className="block w-32 rounded-md border border-gray-300 bg-white px-3 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                    value={formData.check_in_time}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <label htmlFor="check_out" className="block text-sm font-medium text-gray-900">
+                  {formData.daily_rental ? 'Reservation Date *' : 'Check-out Date *'}
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="date"
+                    id="check_out"
+                    name="check_out"
+                    required
+                    className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                    value={formData.daily_rental ? formData.check_in : formData.check_out}
+                    disabled={formData.daily_rental}
+                    onChange={handleInputChange}
+                  />
+                  {formData.daily_rental ? (
+                    <input
+                      type="time"
+                      id="planned_departure_time"
+                      name="planned_departure_time"
+                      required
+                      className="block w-32 rounded-md border border-gray-300 bg-white px-3 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                      value={formData.planned_departure_time}
+                      onChange={handleInputChange}
+                    />
+                  ) : (
+                    <input
+                      type="time"
+                      id="check_out_time"
+                      name="check_out_time"
+                      required
+                      className="block w-32 rounded-md border border-gray-300 bg-white px-3 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                      value={formData.check_out_time}
+                      onChange={handleInputChange}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
               <label htmlFor="notes" className="block text-sm font-medium text-gray-900">
                 Notes
               </label>
               <textarea
                 id="notes"
                 name="notes"
+                rows={3}
+                className="block w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
                 value={formData.notes}
                 onChange={handleInputChange}
-                rows={3}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
+          </div>
 
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                disabled={isSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-                disabled={isSubmitting || !!dateError}
-              >
-                {isSubmitting ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <div className="flex justify-end space-x-4 pt-6 mt-6 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-md bg-primary-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

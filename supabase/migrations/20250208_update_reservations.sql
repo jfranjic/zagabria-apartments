@@ -34,7 +34,9 @@ ALTER TABLE reservations
 
 -- Add check-in details
 ALTER TABLE reservations
-  ADD COLUMN estimated_arrival_time TIME,
-  ADD COLUMN actual_arrival_time TIME,
   ADD COLUMN check_in_notes TEXT,
   ADD COLUMN check_out_notes TEXT;
+
+-- Add constraint to ensure check_out is after check_in
+ALTER TABLE reservations
+  ADD CONSTRAINT valid_dates CHECK (check_out > check_in);
